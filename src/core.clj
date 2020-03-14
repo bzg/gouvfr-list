@@ -2,44 +2,32 @@
   (:require [clojure.java.io :as io]
             [etaoin.api :as e]
             [clojure.string]
+            [utils :as u]
             [semantic-csv.core :as csv]
-            [clj-http.lite.client :as http]
             [etaoin.dev :as edev]
             [hickory.core :as h])
   (:gen-class))
 
-(def config
-  {:path-driver        "/usr/lib/chromium-browser/chromedriver"
-   :path-browser       "/usr/bin/chromium-browser"
-   :path-screenshots   "screenshots/"
-   :data-path          "data/"
-   :top250-output-file "top250.csv"
-   :gouvfr-output-file "gouvfr.csv"
-   :wait               0.1})
-
-(def chromium-opts
-  {:path-driver  (:path-driver config)
-   :path-browser (:path-browser config)
-   ;; :load-strategy :normal ;; FIXME: what does it change?
-   :headless     true
-   :dev
-   {:perf
-    {:level      :all
-     :network?   true
-     :page?      true
-     :interval   1000
-     :categories [:devtools]}}})
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Initialization
 
 (def top250-data (agent nil))
 (def gouvfr-data (agent nil))
 
-(def top250-init
-  (distinct
-   (map #(select-keys % [:Id :Démarche :URL])
-        (csv/slurp-csv (str (:data-path config)
-                            "a23f3995-fcfb-414c-ae3d-82adb90c07cc")))))
+(if-not (.exists (io/as-file (u/path :top250-init-file)))
+  (utils/top250-init))
 
-(def gouvfr-init nil)
+(if-not (.exists (io/as-file (u/path :gouvfr-init-file)))
+  (utils/gouvfr-init))
+
+(def top250-init
+  (csv/slurp-csv (u/path :top250-init-file)))
+
+(def gouvfr-init
+  (csv/slurp-csv (u/path :gouvfr-init-file)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Gather data
 
 (defn total-content-length [reqs]
   (reduce
@@ -90,14 +78,13 @@
                 (last (re-find #"(?i)(https?://)(.+[^/])" url))
                 #"/" "-") ".jpg")]
     (try
-      (let [c (e/chrome chromium-opts)]
+      (let [c (e/chrome (:chromium-opts u/config))]
         (println "Gathering metadata for" url)
-        (e/with-wait (:wait config)
+        (e/with-wait (:wait u/config)
           (e/go c url)
           (when-not top250?
             (e/screenshot
-             c (str (:data-path config)
-                    (:path-screenshots config) i)))
+             c (str (u/path :screenshots) i)))
           (reset! s (e/get-source c))
           (reset! l (edev/get-performance-logs c)))
         (println "Done gathering metadata for" url)
@@ -112,16 +99,16 @@
          (str "Can't fetch data for " url ": "
               (:cause (Throwable->map e))))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Core functions
+
 (defn generate-data [input output]
   (let [top250? (= input top250-init)]
     (doseq [e input]
       (send output conj
             (merge e (website-infos (:URL e) top250?))))
     (csv/spit-csv
-     (str (:data-path config)
-          (if top250?
-            (:top250-output-file config)
-            (:gouvfr-output-file config)))
+     (u/path (if top250? :top250-output-file :gouvfr-output-file))
      (deref output))))
 
 (defn -main []
