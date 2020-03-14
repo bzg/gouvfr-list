@@ -3,15 +3,16 @@
             [etaoin.api :as e]
             [clojure.string]
             [utils :as u]
-            [semantic-csv.core :as csv]
             [etaoin.dev :as edev]
-            [hickory.core :as h])
+            [hickory.core :as h]
+            [semantic-csv.core :as csv]
+            [clj-http.client :as http])
   (:gen-class))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Initialization
 
-(def testing true)
+(def testing false)
 (def top250-data (atom nil))
 (def gouvfr-data (atom nil))
 
@@ -107,6 +108,36 @@
               (:cause (Throwable->map e))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Upload
+
+(def datagouv-api "https://www.data.gouv.fr/api/1")
+
+(def datagouv-api-token (System/getenv "DATAGOUV_API_TOKEN"))
+
+(def csv-file-path (u/path :gouvfr-output-file))
+
+;; https://www.data.gouv.fr/fr/datasets/liste-de-sites-en-gouv-fr/
+(def dataset "5e6cda15634f41398715ea45")
+(def resource "a0f7b15f-2a53-44cb-8182-2a440b78abe8")
+
+(def datagouv-endpoint-format
+  (str datagouv-api "/datasets/" dataset
+       "/resources/%s/upload/"))
+
+(def datagouv-api-headers
+  {:headers {"Accept"    "application/json"
+             "X-Api-Key" datagouv-api-token}})
+
+(defn upload-gouvfr-csv []
+  (http/post
+   (format datagouv-endpoint-format resource)
+   (merge datagouv-api-headers
+          {:insecure?     true
+           :cookie-policy :standard}
+          {:multipart [{:name    "file"
+                        :content (io/file csv-file-path)}]})))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Core functions
 
 (defn generate-data [in out & [limit]]
@@ -120,7 +151,6 @@
 
 (defn -main []
   (generate-data top250-init top250-data (when testing 3))
-  (generate-data gouvfr-init gouvfr-data (when testing 3)))
-
-;; (time (-main))
-
+  (generate-data gouvfr-init gouvfr-data (when testing 3))
+  (when-not testing
+    (upload-gouvfr-csv)))
