@@ -1,0 +1,13 @@
+pom.xml
+log.txt
+*jar
+/lib/
+/classes/
+/out/
+/target/
+.repl
+.nrepl-port
+.rebel_readline_history
+.dir-locals.el
+src/scratch.clj
+data/

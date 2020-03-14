@@ -1,0 +1,44 @@
+{:version     "0.1.0"
+ :description "Go through gouv.fr websites and get metadata"
+ :url         "https://github.com/bzg/gouvfr-list"
+ :license     {:name "Eclipse Public License - v 2.0"
+               :url  "http://www.eclipse.org/legal/epl-v20.html"}
+
+ :deps
+ {
+  semantic-csv                    {:mvn/version "0.2.0"}
+  etaoin                          {:mvn/version "0.3.6"}
+  hickory                         {:mvn/version "0.7.1"}
+  org.clojure/clojure             {:mvn/version "1.10.1"}
+  org.martinklepsch/clj-http-lite {:mvn/version "0.4.3"}
+  }
+
+ :paths ["src"]
+
+ :aliases
+ {:run {:jvm-opts  ["-Xmx1g"]
+        :main-opts ["-m" "core"]}
+
+  :jar {:extra-deps {seancorfield/depstar {:mvn/version "RELEASE"}}
+        :main-opts  ["-m" "hf.depstar.uberjar" "gouvfrlist.jar"
+                     "-C" "-m" "core"]}
+
+  :native-image
+  {:main-opts ["-m clj.native-image core"
+               ;; "--verbose"
+               "--no-fallback"
+               "--report-unsupported-elements-at-runtime"
+               "--initialize-at-build-time"
+               ;; Allow https get
+               "-H:EnableURLProtocols=https"
+               ;; Display backtraces
+               "-H:+ReportExceptionStackTraces"
+               ;; Optional native image name override
+               "-H:Name=gouvfr-list"]
+   :jvm-opts  ["-Dclojure.compiler.direct-linking=true"]
+   :extra-deps
+   {clj.native-image
+    {:git/url "https://github.com/taylorwood/clj.native-image.git"
+     :sha     "602587dfb5243ea8c72ed3e967c37c1f9d611723"}}}
+
+  }}
