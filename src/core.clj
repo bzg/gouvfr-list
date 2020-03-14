@@ -172,6 +172,6 @@
 
 (defn -main []
   (generate-data top250-init top250-data (when testing 3))
-  (generate-data (take 100 gouvfr-init) gouvfr-data (when testing 3))
+  (generate-data gouvfr-init gouvfr-data (when testing 3))
   (when-not testing
     (upload-gouvfr-csv)))
