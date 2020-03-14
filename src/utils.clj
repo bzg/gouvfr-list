@@ -5,7 +5,6 @@
 
 (def config
   {:path-driver          "/usr/lib/chromium-browser/chromedriver"
-   :path-browser         "/usr/bin/chromium-browser"
    :wait                 1
    :data-path            "data/"
    :screenshots          "screenshots/"
@@ -39,6 +38,7 @@
     (map #(first (groups %)) (distinct (map f coll)))))
 
 (defn top250-init []
+  (println "Initializing" (path :top250-init-file))
   (csv/spit-csv
    (path :top250-init-file)
    (distinct-by
@@ -52,6 +52,7 @@
     (slurp (path :gouvfr-raw-text-file)))))
 
 (defn gouvfr-init []
+  (println "Initializing" (path :gouvfr-init-file))
   (let [valid-domains (atom nil)]
     (doseq [d gouvfr-domains]
       (let [dp    (str "http://" d)
@@ -62,5 +63,7 @@
           (swap! valid-domains conj (or redir dp)))))
     (csv/spit-csv
      (path :gouvfr-init-file)
-     (map (fn [d] {:URL d}) @valid-domains))))
-
+     (map (fn [d] {:URL d})
+          (distinct
+           (map #(clojure.string/replace % #"/$" "")
+                @valid-domains))))))
