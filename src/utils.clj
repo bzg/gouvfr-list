@@ -6,7 +6,7 @@
 (def config
   {:path-driver          "/usr/lib/chromium-browser/chromedriver"
    :path-browser         "/usr/bin/chromium-browser"
-   :wait                 0.1
+   :wait                 1
    :data-path            "data/"
    :screenshots          "screenshots/"
    :gouvfr-init-file     "gouvfr-init.csv"
