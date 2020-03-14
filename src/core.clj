@@ -11,13 +11,20 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Initialization
 
-(def top250-data (agent nil))
-(def gouvfr-data (agent nil))
+(def testing true)
+(def top250-data (atom nil))
+(def gouvfr-data (atom nil))
 
-(if-not (.exists (io/as-file (u/path :top250-init-file)))
+(if-not
+    (or testing
+        (.exists (io/as-file
+                  (u/path :top250-init-file))))
   (utils/top250-init))
 
-(if-not (.exists (io/as-file (u/path :gouvfr-init-file)))
+(if-not
+    (or testing
+        (.exists (io/as-file
+                  (u/path :gouvfr-init-file))))
   (utils/gouvfr-init))
 
 (def top250-init
@@ -79,7 +86,7 @@
                 #"/" "-") ".jpg")]
     (try
       (let [c (e/chrome (:chromium-opts u/config))]
-        (println "Gathering metadata for" url)
+        (println "Gathering metadata for" url "...")
         (e/with-wait (:wait u/config)
           (e/go c url)
           (when-not top250?
@@ -87,7 +94,7 @@
              c (str (u/path :screenshots) i)))
           (reset! s (e/get-source c))
           (reset! l (edev/get-performance-logs c)))
-        (println "Done gathering metadata for" url)
+        (println "... done")
         (merge
          {:using-ga? (re-find #"UA-[0-9]+-[0-9]+" @s)}
          (when-not top250?
@@ -102,18 +109,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Core functions
 
-(defn generate-data [input output]
-  (let [top250? (= input top250-init)]
+(defn generate-data [in out & [limit]]
+  (let [top250? (= in top250-init)
+        input   (if limit (take limit in) in)]
     (doseq [e input]
-      (send output conj
-            (merge e (website-infos (:URL e) top250?))))
+      (swap! out conj (merge e (website-infos (:URL e) top250?))))
     (csv/spit-csv
      (u/path (if top250? :top250-output-file :gouvfr-output-file))
-     (deref output))))
+     (deref out))))
 
 (defn -main []
-  (generate-data top250-init top250-data)
-  (generate-data gouvfr-init gouvfr-data))
+  (generate-data top250-init top250-data (when testing 3))
+  (generate-data gouvfr-init gouvfr-data (when testing 3)))
 
 ;; (time (-main))
 
