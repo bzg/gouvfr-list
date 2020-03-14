@@ -9,15 +9,18 @@
   (:gen-class))
 
 (def config
-  {:path-driver      "/usr/lib/chromium-browser/chromedriver"
-   :path-browser     "/usr/bin/chromium-browser"
-   :path-screenshots "screenshots/"
-   :wait             1})
+  {:path-driver        "/usr/lib/chromium-browser/chromedriver"
+   :path-browser       "/usr/bin/chromium-browser"
+   :path-screenshots   "screenshots/"
+   :data-path          "data/"
+   :top250-output-file "top250.csv"
+   :gouvfr-output-file "gouvfr.csv"
+   :wait               0.1})
 
 (def chromium-opts
   {:path-driver  (:path-driver config)
    :path-browser (:path-browser config)
-   ;; :load-strategy :normal
+   ;; :load-strategy :normal ;; FIXME: what does it change?
    :headless     true
    :dev
    {:perf
@@ -27,9 +30,16 @@
      :interval   1000
      :categories [:devtools]}}})
 
-(def top250-data
-  (map #(select-keys % [:Id :Hostname :URL :Démarche])
-       (csv/slurp-csv "data/a23f3995-fcfb-414c-ae3d-82adb90c07cc")))
+(def top250-data (agent nil))
+(def gouvfr-data (agent nil))
+
+(def top250-init
+  (distinct
+   (map #(select-keys % [:Id :Démarche :URL])
+        (csv/slurp-csv (str (:data-path config)
+                            "a23f3995-fcfb-414c-ae3d-82adb90c07cc")))))
+
+(def gouvfr-init nil)
 
 (defn total-content-length [reqs]
   (reduce
@@ -73,7 +83,7 @@
      :is-secure?      (= (get-in logs1 [:params :response :securityState]) "secure")
      :content-length  (total-content-length requests)}))
 
-(defn website-infos [url]
+(defn website-infos [url top250?]
   (let [s (atom nil)
         l (atom nil)
         i (str (clojure.string/replace
@@ -84,25 +94,39 @@
         (println "Gathering metadata for" url)
         (e/with-wait (:wait config)
           (e/go c url)
-          (e/screenshot c (str (:path-screenshots config) i))
+          (when-not top250?
+            (e/screenshot
+             c (str (:data-path config)
+                    (:path-screenshots config) i)))
           (reset! s (e/get-source c))
           (reset! l (edev/get-performance-logs c)))
         (println "Done gathering metadata for" url)
         (merge
-         {:url              url
-          :capture-filename i
-          :using-ga?        (re-find #"UA-[0-9]+-[0-9]+" @s)}
-         (website-html-infos @s)
+         {:using-ga? (re-find #"UA-[0-9]+-[0-9]+" @s)}
+         (when-not top250?
+           (merge {:capture-filename i}
+                  (website-html-infos @s)))
          (website-logs-infos @l)))
       (catch Exception e
         (println
          (str "Can't fetch data for " url ": "
               (:cause (Throwable->map e))))))))
 
-(defn -main [& [arg]]
-  ;; (website-infos "https://bzg.fr")
-  (println arg)
-  )
+(defn generate-data [input output]
+  (let [top250? (= input top250-init)]
+    (doseq [e input]
+      (send output conj
+            (merge e (website-infos (:URL e) top250?))))
+    (csv/spit-csv
+     (str (:data-path config)
+          (if top250?
+            (:top250-output-file config)
+            (:gouvfr-output-file config)))
+     (deref output))))
 
-;; (-main)
+(defn -main []
+  (generate-data top250-init top250-data)
+  (generate-data gouvfr-init gouvfr-data))
+
+;; (time (-main))
 
