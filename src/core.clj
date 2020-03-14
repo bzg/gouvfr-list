@@ -12,12 +12,9 @@
   (:gen-class))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Debugging?
+;; Setup debugging and logging
 
-(def testing false)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Setup logging
+(def testing true)
 
 (timbre/set-config!
  {:level     :debug
@@ -27,31 +24,7 @@
    :spit    (appenders/spit-appender {:fname (:log-file u/config)})}})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Initialization
-
-(def top250-data (atom nil))
-(def gouvfr-data (atom nil))
-
-(if-not
-    (or testing
-        (.exists (io/as-file
-                  (u/path :top250-init-file))))
-  (u/top250-init))
-
-(if-not
-    (or testing
-        (.exists (io/as-file
-                  (u/path :gouvfr-init-file))))
-  (u/gouvfr-init))
-
-(def top250-init
-  (csv/slurp-csv (u/path :top250-init-file)))
-
-(def gouvfr-init
-  (csv/slurp-csv (u/path :gouvfr-init-file)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Gather data
+;; Core function to gather data
 
 (defn total-content-length [reqs]
   (reduce
@@ -108,7 +81,7 @@
           (e/go c url)
           (when-not top250?
             (e/screenshot
-             c (str (u/path :screenshots) i)))
+             c (str (u/path :screenshots-rel-path) i)))
           (reset! s (e/get-source c))
           (reset! l (edev/get-performance-logs c)))
         (timbre/info "... done")
@@ -123,7 +96,7 @@
               (:cause (Throwable->map e))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Upload
+;; Upload to data.gouv.fr
 
 (def datagouv-api "https://www.data.gouv.fr/api/1")
 
@@ -146,7 +119,7 @@
 (defn upload-gouvfr-csv []
   (timbre/info "Upload gouvfr.csv to data.gouv.fr...")
   (if-not (.exists (io/file csv-file-path))
-    (timbre/info "Upload aborted: gouvfr.csv does not exist")
+    (timbre/error "Upload aborted: gouvfr.csv does not exist")
     (if-let [res (try (http/post
                        (format datagouv-endpoint-format resource)
                        (merge datagouv-api-headers
@@ -161,17 +134,38 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Core functions
 
-(defn generate-data [in out & [limit]]
-  (let [top250? (= in top250-init)
-        input   (if limit (take limit in) in)]
-    (doseq [e input]
-      (swap! out conj (merge e (website-infos (:URL e) top250?))))
-    (csv/spit-csv
-     (u/path (if top250? :top250-output-file :gouvfr-output-file))
-     (deref out))))
+(def top250-data (atom nil))
+(def gouvfr-data (atom nil))
 
-(defn -main []
-  (generate-data top250-init top250-data (when testing 3))
-  (generate-data gouvfr-init gouvfr-data (when testing 3))
-  (when-not testing
+(defn generate-data [input output & [top250?]]
+  (doseq [e (if testing (take 5 input) input)]
+    (swap! output conj
+           (merge e (website-infos (:base-url e) top250?))))
+  (csv/spit-csv
+   (u/path (if top250? :top250-output-file :gouvfr-output-file))
+   (deref output)))
+
+(defn generate-data-top250 [init?]
+  (when (or init? (not (.exists (io/as-file (u/path :top250-init-file)))))
+    (u/top250-init))
+  (let [top250 (csv/slurp-csv (u/path :top250-init-file))]
+    (generate-data top250 top250-data :top250)))
+
+(defn generate-data-gouvfr [init?]
+  (when (or init? (not (.exists (io/as-file (u/path :gouvfr-init-file)))))
+    (u/top250-init))
+  (let [top250 (csv/slurp-csv (u/path :gouvfr-init-file))]
+    (generate-data top250 top250-data)))
+
+(defn -main [& [type init?]]
+  (condp = type
+    "top250" (generate-data-top250 init?)
+    "gouvfr" (generate-data-gouvfr init?)
+    (timbre/error "First arg must by \"top250\" or \"gouvfr\""))
+  ;; TODO:
+  ;; (when (and (not testing)
+  ;;            (.exists (io/as-file (u/path :top250-output-file))))
+  ;;   (upload-top250-csv))
+  (when (and (not testing)
+             (.exists (io/as-file (u/path :gouvfr-output-file))))
     (upload-gouvfr-csv)))
