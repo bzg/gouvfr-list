@@ -1,10 +1,11 @@
 (ns utils
   (:require [clojure.string]
             [semantic-csv.core :as csv]
+            [taoensso.timbre :as timbre]
             [clj-http.client :as http]))
 
 (def config
-  {:path-driver          "/usr/lib/chromium-browser/chromedriver"
+  {:log-file             "log.txt"
    :wait                 1
    :data-path            "data/"
    :screenshots          "screenshots/"
@@ -19,8 +20,8 @@
                           :socket-timeout     2000
                           :connection-timeout 2000
                           :max-redirects      3}
-   :chromium-opts        {:path-driver  (:path-driver config)
-                          :path-browser (:path-browser config)
+   :chromium-opts        {:path-driver "/usr/lib/chromium-browser/chromedriver"
+                          ;; :path-browser (:path-browser config)
                           ;; :load-strategy :normal ;; FIXME: what does it change?
                           :headless     true
                           :dev
@@ -38,7 +39,7 @@
     (map #(first (groups %)) (distinct (map f coll)))))
 
 (defn top250-init []
-  (println "Initializing" (path :top250-init-file))
+  (timbre/info (str "Initializing " (path :top250-init-file)))
   (csv/spit-csv
    (path :top250-init-file)
    (distinct-by
@@ -52,7 +53,7 @@
     (slurp (path :gouvfr-raw-text-file)))))
 
 (defn gouvfr-init []
-  (println "Initializing" (path :gouvfr-init-file))
+  (timbre/info (str "Initializing " (path :gouvfr-init-file)))
   (let [valid-domains (atom nil)]
     (doseq [d gouvfr-domains]
       (let [dp    (str "http://" d)

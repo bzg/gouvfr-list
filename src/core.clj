@@ -6,13 +6,29 @@
             [etaoin.dev :as edev]
             [hickory.core :as h]
             [semantic-csv.core :as csv]
-            [clj-http.client :as http])
+            [clj-http.client :as http]
+            [taoensso.timbre :as timbre]
+            [taoensso.timbre.appenders.core :as appenders])
   (:gen-class))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Debugging?
+
+(def testing false)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Setup logging
+
+(timbre/set-config!
+ {:level     :debug
+  :output-fn (partial timbre/default-output-fn {:stacktrace-fonts {}})
+  :appenders
+  {:println (timbre/println-appender {:stream :auto})
+   :spit    (appenders/spit-appender {:fname (:log-file u/config)})}})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Initialization
 
-(def testing false)
 (def top250-data (atom nil))
 (def gouvfr-data (atom nil))
 
@@ -20,13 +36,13 @@
     (or testing
         (.exists (io/as-file
                   (u/path :top250-init-file))))
-  (utils/top250-init))
+  (u/top250-init))
 
 (if-not
     (or testing
         (.exists (io/as-file
                   (u/path :gouvfr-init-file))))
-  (utils/gouvfr-init))
+  (u/gouvfr-init))
 
 (def top250-init
   (csv/slurp-csv (u/path :top250-init-file)))
@@ -87,7 +103,7 @@
                 #"/" "-") ".jpg")]
     (try
       (let [c (e/chrome (:chromium-opts u/config))]
-        (println "Gathering metadata for" url "...")
+        (timbre/info (str "Gathering metadata for " url "..."))
         (e/with-wait (:wait u/config)
           (e/go c url)
           (when-not top250?
@@ -95,15 +111,14 @@
              c (str (u/path :screenshots) i)))
           (reset! s (e/get-source c))
           (reset! l (edev/get-performance-logs c)))
-        (println "... done")
+        (timbre/info "... done")
         (merge
          {:using-ga? (re-find #"UA-[0-9]+-[0-9]+" @s)}
-         (when-not top250?
-           (merge {:capture-filename i}
-                  (website-html-infos @s)))
+         (merge (when-not top250? {:capture-filename i})
+                (website-html-infos @s))
          (website-logs-infos @l)))
       (catch Exception e
-        (println
+        (timbre/info
          (str "Can't fetch data for " url ": "
               (:cause (Throwable->map e))))))))
 
@@ -129,13 +144,19 @@
              "X-Api-Key" datagouv-api-token}})
 
 (defn upload-gouvfr-csv []
-  (http/post
-   (format datagouv-endpoint-format resource)
-   (merge datagouv-api-headers
-          {:insecure?     true
-           :cookie-policy :standard}
-          {:multipart [{:name    "file"
-                        :content (io/file csv-file-path)}]})))
+  (timbre/info "Upload gouvfr.csv to data.gouv.fr...")
+  (if-not (.exists (io/file csv-file-path))
+    (timbre/info "Upload aborted: gouvfr.csv does not exist")
+    (if-let [res (try (http/post
+                       (format datagouv-endpoint-format resource)
+                       (merge datagouv-api-headers
+                              {:insecure?     true
+                               :cookie-policy :standard}
+                              {:multipart [{:name    "file"
+                                            :content (io/file csv-file-path)}]}))
+                      (catch Exception _ nil))]
+      (timbre/info "... done.")
+      (timbre/info "... NOT done!"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Core functions
