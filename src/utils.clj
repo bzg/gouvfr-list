@@ -33,10 +33,15 @@
 
 (defn path [k] (str (:data-path config) (k config)))
 
+(defn distinct-by [f coll]
+  (let [groups (group-by f coll)]
+    (map #(first (groups %)) (distinct (map f coll)))))
+
 (defn top250-init []
   (csv/spit-csv
    (path :top250-init-file)
-   (distinct
+   (distinct-by
+    :URL
     (map #(select-keys % [:Id :Démarche :URL])
          (csv/slurp-csv (path :top250-raw-csv-file))))))
 
