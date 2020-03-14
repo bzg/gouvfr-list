@@ -11,3 +11,4 @@ log.txt
 .dir-locals.el
 src/scratch.clj
 data/
+.cpcache/
