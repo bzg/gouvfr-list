@@ -16,6 +16,7 @@
    :top250-output-file   "top250.csv"
    :top250-raw-csv-file  "a23f3995-fcfb-414c-ae3d-82adb90c07cc"
    :http-get-opts        {:insecure?          true
+                          :cookie-policy      :standard
                           :socket-timeout     2000
                           :connection-timeout 2000
                           :max-redirects      3}
