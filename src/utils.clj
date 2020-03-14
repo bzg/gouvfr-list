@@ -6,7 +6,7 @@
 
 (def config
   {:log-file             "log.txt"
-   :wait                 1
+   :wait                 0.2
    :data-path            "data/"
    :screenshots          "screenshots/"
    :gouvfr-init-file     "gouvfr-init.csv"
@@ -21,9 +21,8 @@
                           :connection-timeout 2000
                           :max-redirects      3}
    :chromium-opts        {:path-driver "/usr/lib/chromium-browser/chromedriver"
-                          ;; :path-browser (:path-browser config)
                           ;; :load-strategy :normal ;; FIXME: what does it change?
-                          :headless     true
+                          :headless    true
                           :dev
                           {:perf
                            {:level      :all
