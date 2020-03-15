@@ -7,7 +7,7 @@
 
 (def config
   {:log-file             "log.txt"
-   :driver-wait          2
+   :driver-wait          1
    :driver-timeout       10000
    :data-path            "data/"
    :screenshots-rel-path "screenshots/"
@@ -29,9 +29,10 @@
                           {:perf
                            {:level      :all
                             :network?   true
-                            :page?      true
+                            :page?      false
                             :interval   1000
-                            :categories [:devtools]}}}})
+                            :categories [:devtools
+                                         :devtools.network]}}}})
 
 (defn path [k] (str (:data-path config) (k config)))
 
