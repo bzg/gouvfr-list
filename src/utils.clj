@@ -6,7 +6,8 @@
 
 (def config
   {:log-file             "log.txt"
-   :wait                 1
+   :driver-wait          1
+   :driver-timeout       10000
    :data-path            "data/"
    :screenshots-rel-path "screenshots/"
    :gouvfr-init-file     "gouvfr-init.csv"
@@ -38,18 +39,16 @@
     (map #(first (groups %)) (distinct (map f coll)))))
 
 (defn url-domain-only [s]
-  (clojure.string/replace s #"^(https?://[^/]+)/.*$" "$1"))
+  (clojure.string/replace s #"^https?://([^/]+)/.*$" "$1"))
 
 (defn top250-init []
   (timbre/info (str "Initializing " (path :top250-init-file)))
   (csv/spit-csv
    (path :top250-init-file)
-   (map #(clojure.set/rename-keys % {:URL :base-url})
-        (distinct-by
-         :URL
-         (->> (csv/slurp-csv (path :top250-raw-csv-file))
-              (map #(select-keys % [:Id :Démarche :URL]))
-              (map #(update % :URL url-domain-only)))))))
+   (distinct-by
+    :URL
+    (map #(select-keys % [:Id :Démarche :URL])
+         (csv/slurp-csv (path :top250-raw-csv-file))))))
 
 (def gouvfr-domains
   (clojure.string/split-lines
@@ -64,6 +63,6 @@
                        (catch Exception _ nil))
             redir (last (:trace-redirects resp))]
         (when (= (:status resp) 200)
-          (swap! valid-domains conj {:base-url (or redir dp)}))))
+          (swap! valid-domains conj {:URL (or redir dp)}))))
     (csv/spit-csv
      (path :gouvfr-init-file) @valid-domains)))

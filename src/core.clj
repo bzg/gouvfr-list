@@ -14,7 +14,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Setup debugging and logging
 
-(def testing true)
+(def testing false)
 
 (timbre/set-config!
  {:level     :debug
@@ -25,6 +25,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Core function to gather data
+
+(defn timeout [timeout-ms callback]
+  (let [fut (future (callback))
+        ret (deref fut timeout-ms ::timed-out)]
+    (when (= ret ::timed-out)
+      (future-cancel fut))))
 
 (defn total-content-length [reqs]
   (reduce
@@ -39,7 +45,7 @@
                         (:content-type req) "")))
          (remove nil? (map #(get-in % [:response :headers]) reqs))))))
 
-(defn website-html-infos [s]
+(defn site-html-infos [s]
   (let [h             (filter #(not (string? %)) (h/as-hiccup (h/parse s)))
         s             (tree-seq sequential? #(filter vector? %) h)
         count-tags    (count (rest s))
@@ -57,7 +63,7 @@
      :keywords    (or keywords "")
      :og:image    (or (get-meta-vals "og:image" :property) "")}))
 
-(defn website-logs-infos [logs]
+(defn site-logs-infos [logs]
   (let [requests (edev/logs->requests logs)
         logs0    (filter #(= (:method %) "Network.responseReceived")
                          (map :message logs))
@@ -68,28 +74,28 @@
      :is-secure?      (= (get-in logs1 [:params :response :securityState]) "secure")
      :content-length  (total-content-length requests)}))
 
-(defn website-infos [url top250?]
-  (let [s (atom nil)
+(defn site-infos [chrome-session url top250?]
+  (let [c chrome-session
+        s (atom nil)
         l (atom nil)
-        i (str (clojure.string/replace
-                (last (re-find #"(?i)(https?://)(.+[^/])" url))
-                #"/" "-") ".jpg")]
+        i (str url ".jpg")
+        w (:driver-wait u/config)
+        t (:driver-timeout u/config)]
+    (timbre/info (str "Gathering metadata for " url "..."))
     (try
-      (let [c (e/chrome (:chromium-opts u/config))]
-        (timbre/info (str "Gathering metadata for " url "..."))
-        (e/with-wait (:wait u/config)
-          (e/go c url)
-          (when-not top250?
-            (e/screenshot
-             c (str (u/path :screenshots-rel-path) i)))
-          (reset! s (e/get-source c))
-          (reset! l (edev/get-performance-logs c)))
-        (timbre/info "... done")
-        (merge
-         {:using-ga? (re-find #"UA-[0-9]+-[0-9]+" @s)}
-         (merge (when-not top250? {:capture-filename i})
-                (website-html-infos @s))
-         (website-logs-infos @l)))
+      (do (e/with-wait w (e/go c url)
+            (when-not top250?
+              (e/screenshot
+               c (str (u/path :screenshots-rel-path) i)))
+            ;; Prevent downloading illformated pages
+            (timeout t #(reset! s (e/get-source c)))
+            (timeout t #(reset! l (edev/get-performance-logs c))))
+          (timbre/info "... done")
+          (merge
+           {:using-ga? (nil? (re-find #"UA-[0-9]+-[0-9]+" (or @s "")))}
+           (merge (when-not top250? {:capture-filename i})
+                  (site-html-infos (or @s "")))
+           (site-logs-infos @l)))
       (catch Exception e
         (timbre/info
          (str "Can't fetch data for " url ": "
@@ -138,9 +144,9 @@
 (def gouvfr-data (atom nil))
 
 (defn generate-data [input output & [top250?]]
-  (doseq [e (if testing (take 5 input) input)]
-    (swap! output conj
-           (merge e (website-infos (:base-url e) top250?))))
+  (let [c (e/chrome (:chromium-opts u/config))]
+    (doseq [e (if testing (take 5 input) input)]
+      (swap! output conj (merge e (site-infos c (:URL e) top250?)))))
   (csv/spit-csv
    (u/path (if top250? :top250-output-file :gouvfr-output-file))
    (deref output)))
@@ -148,14 +154,14 @@
 (defn generate-data-top250 [init?]
   (when (or init? (not (.exists (io/as-file (u/path :top250-init-file)))))
     (u/top250-init))
-  (let [top250 (csv/slurp-csv (u/path :top250-init-file))]
-    (generate-data top250 top250-data :top250)))
+  (generate-data
+   (csv/slurp-csv (u/path :top250-init-file)) top250-data :top250))
 
 (defn generate-data-gouvfr [init?]
   (when (or init? (not (.exists (io/as-file (u/path :gouvfr-init-file)))))
     (u/top250-init))
-  (let [top250 (csv/slurp-csv (u/path :gouvfr-init-file))]
-    (generate-data top250 top250-data)))
+  (generate-data
+   (csv/slurp-csv (u/path :gouvfr-init-file)) top250-data))
 
 (defn -main [& [type init?]]
   (condp = type
