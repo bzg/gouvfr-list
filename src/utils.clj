@@ -7,7 +7,7 @@
 
 (def config
   {:log-file             "log.txt"
-   :driver-wait          1
+   :driver-wait          2
    :driver-timeout       10000
    :data-path            "data/"
    :screenshots-rel-path "screenshots/"
