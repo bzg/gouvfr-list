@@ -45,9 +45,6 @@
 (defn url-no-protocol [s]
   (clojure.string/replace s #"^https?://(.+[^/])/?$" "$1"))
 
-(defn no-trailing-slash [s]
-  (clojure.string/replace s #"/$" ""))
-
 (defn url-encode
   "Returns an UTF-8 URL encoded version of the given string."
   [^String unencoded]
@@ -78,5 +75,5 @@
           (swap! valid-domains conj {:URL (or redir dp)}))))
     (csv/spit-csv
      (path :gouvfr-init-file)
-     (->> @valid-domains (map no-trailing-slash) distinct))))
-
+     (distinct-by #(let [r (clojure.string/replace % #"/$" "")] r)
+                  @valid-domains))))
