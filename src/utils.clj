@@ -43,7 +43,7 @@
   (clojure.string/replace s #"^https?://([^/]+)/.*$" "$1"))
 
 (defn url-no-protocol [s]
-  (clojure.string/replace s #"^https?://(.*$)" "$1"))
+  (clojure.string/replace s #"^https?://(.+[^/])/?$" "$1"))
 
 (defn url-encode
   "Returns an UTF-8 URL encoded version of the given string."
