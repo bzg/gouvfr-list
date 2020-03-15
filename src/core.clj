@@ -163,9 +163,9 @@
 
 (defn generate-data-gouvfr [init?]
   (when (or init? (not (.exists (io/as-file (u/path :gouvfr-init-file)))))
-    (u/top250-init))
+    (u/gouvfr-init))
   (generate-data
-   (csv/slurp-csv (u/path :gouvfr-init-file)) top250-data))
+   (csv/slurp-csv (u/path :gouvfr-init-file)) gouvfr-data))
 
 (defn -main [& [type init?]]
   (condp = type
