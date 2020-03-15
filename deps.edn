@@ -14,7 +14,7 @@
  :paths ["src"]
 
  :aliases
- {:run {:jvm-opts  ["-Xmx1g"]
+ {:run {:jvm-opts  ["-Xmx2g"]
         :main-opts ["-m" "core"]}
 
   :jar {:extra-deps {seancorfield/depstar {:mvn/version "RELEASE"}}
