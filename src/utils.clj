@@ -2,7 +2,8 @@
   (:require [clojure.string]
             [semantic-csv.core :as csv]
             [taoensso.timbre :as timbre]
-            [clj-http.client :as http]))
+            [clj-http.client :as http])
+  (:import [java.net URLEncoder]))
 
 (def config
   {:log-file             "log.txt"
@@ -40,6 +41,14 @@
 
 (defn url-domain-only [s]
   (clojure.string/replace s #"^https?://([^/]+)/.*$" "$1"))
+
+(defn url-no-protocol [s]
+  (clojure.string/replace s #"^https?://(.*$)" "$1"))
+
+(defn url-encode
+  "Returns an UTF-8 URL encoded version of the given string."
+  [^String unencoded]
+  (URLEncoder/encode unencoded "UTF-8"))
 
 (defn top250-init []
   (timbre/info (str "Initializing " (path :top250-init-file)))

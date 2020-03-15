@@ -79,7 +79,7 @@
   (let [c chrome-session
         s (atom nil)
         l (atom nil)
-        i (str url ".jpg")
+        i (str (u/url-encode (u/url-no-protocol url)) ".jpg")
         w (:driver-wait u/config)
         t (:driver-timeout u/config)]
     (timbre/info (str "Gathering metadata for " url "..."))
