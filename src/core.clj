@@ -26,6 +26,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Core function to gather data
 
+;; https://stackoverflow.com/questions/6694530/executing-a-function-with-a-timeout
 (defn timeout [timeout-ms callback]
   (let [fut (future (callback))
         ret (deref fut timeout-ms ::timed-out)]
@@ -105,34 +106,37 @@
 ;; Upload to data.gouv.fr
 
 (def datagouv-api "https://www.data.gouv.fr/api/1")
-
 (def datagouv-api-token (System/getenv "DATAGOUV_API_TOKEN"))
 
-(def csv-file-path (u/path :gouvfr-output-file))
-
 ;; https://www.data.gouv.fr/fr/datasets/liste-de-sites-en-gouv-fr/
-(def dataset "5e6cda15634f41398715ea45")
-(def resource "a0f7b15f-2a53-44cb-8182-2a440b78abe8")
+(def gouvfr-file-path (u/path :gouvfr-output-file))
+(def gouvfr-dataset "5e6cda15634f41398715ea45")
+(def gouvfr-resource "a0f7b15f-2a53-44cb-8182-2a440b78abe8")
 
-(def datagouv-endpoint-format
-  (str datagouv-api "/datasets/" dataset
-       "/resources/%s/upload/"))
+;; https://www.data.gouv.fr/fr/datasets/observatoire-de-la-dematerialisation-de-qualite-tableau-de-bord-des-demarches-phares-de-letat/
+(def top250-file-path (u/path :top250-output-file))
+(def top250-dataset "5d0a5c09634f412301dba116")
+(def top250-resource "e1de8987-7d9a-4885-987f-80f2e9c63c3f")
+
+(defn datagouv-endpoint-format [d r]
+  (str datagouv-api "/datasets/" d "/resources/" r "/upload/"))
 
 (def datagouv-api-headers
   {:headers {"Accept"    "application/json"
              "X-Api-Key" datagouv-api-token}})
 
-(defn upload-gouvfr-csv []
+(defn upload-csv [file-path dataset resource]
   (timbre/info "Upload gouvfr.csv to data.gouv.fr...")
-  (if-not (.exists (io/file csv-file-path))
-    (timbre/error "Upload aborted: gouvfr.csv does not exist")
+  (if-not (.exists (io/file file-path))
+    (timbre/error
+     (format "Upload aborted: %s does not exist" file-path))
     (if-let [res (try (http/post
-                       (format datagouv-endpoint-format resource)
+                       (datagouv-endpoint-format dataset resource)
                        (merge datagouv-api-headers
                               {:insecure?     true
                                :cookie-policy :standard}
                               {:multipart [{:name    "file"
-                                            :content (io/file csv-file-path)}]}))
+                                            :content (io/file file-path)}]}))
                       (catch Exception _ nil))]
       (timbre/info "... done.")
       (timbre/info "... NOT done!"))))
@@ -165,13 +169,13 @@
 
 (defn -main [& [type init?]]
   (condp = type
-    "top250" (generate-data-top250 init?)
-    "gouvfr" (generate-data-gouvfr init?)
+    "top250" (do (generate-data-top250 init?)
+                 (when-not testing
+                   (upload-csv (u/path :top250-output-file)
+                               top250-dataset top250-resource)))
+    "gouvfr" (do (generate-data-gouvfr init?)
+                 (when-not testing
+                   (upload-csv (u/path :gouvfr-output-file)
+                               gouvfr-dataset gouvfr-resource)))
     (timbre/error "First arg must by \"top250\" or \"gouvfr\""))
-  ;; TODO:
-  ;; (when (and (not testing)
-  ;;            (.exists (io/as-file (u/path :top250-output-file))))
-  ;;   (upload-top250-csv))
-  (when (and (not testing)
-             (.exists (io/as-file (u/path :gouvfr-output-file))))
-    (upload-gouvfr-csv)))
+  (System/exit 0))
