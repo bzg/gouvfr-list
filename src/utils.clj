@@ -74,4 +74,4 @@
         (when (= (:status resp) 200)
           (swap! valid-domains conj {:URL (or redir dp)}))))
     (csv/spit-csv
-     (path :gouvfr-init-file) @valid-domains)))
+     (path :gouvfr-init-file) (distinct @valid-domains))))
