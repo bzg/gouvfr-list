@@ -13,11 +13,12 @@
    :data-path            "data/"
    :screenshots-rel-path "screenshots/"
    :gouvfr-init-file     "gouvfr-init.csv"
-   :gouvfr-output-file   (format "gouvfr-%s.csv" (t/format "MM/dd/YYYY" %))
+   :gouvfr-output-file   (format "gouvfr-%s.csv"
+                                 (t/format "MM-dd-YYY" (t/local-date)))
    :gouvfr-raw-text-file "gouvfr-raw.txt"
    :top250-init-file     "top250-init.csv"
-   :top250-output-file   (format "tdb-demarches-phares-informations-supplementaires-%.csv"
-                                 (t/format "YYYY/MM/dd" %))
+   :top250-output-file   (format "tdb-demarches-phares-informations-supplementaires-%s.csv"
+                                 (t/format "YYYYMMdd" (t/local-date)))
    :top250-raw-csv-file  "a23f3995-fcfb-414c-ae3d-82adb90c07cc"
    :http-params          {:insecure?          true
                           :cookie-policy      :standard
@@ -52,6 +53,12 @@
   "Returns an UTF-8 URL encoded version of the given string."
   [^String unencoded]
   (URLEncoder/encode unencoded "UTF-8"))
+
+(defn string-replace-newline [s]
+  (-> s
+      (clojure.string/replace #"(\r\n|\n|\r)+" " ")
+      (clojure.string/replace #"  +" " ")
+      (clojure.string/trim)))
 
 (defn top250-init []
   (timbre/info (str "Initializing " (path :top250-init-file)))

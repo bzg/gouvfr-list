@@ -59,11 +59,11 @@
         viewport      (get-meta-vals "viewport" :name)
         description   (get-meta-vals "description" :name)
         keywords      (get-meta-vals "keywords" :name)]
-    {:title       (or title "")
+    {:title       (u/string-replace-newline (or title ""))
      :viewport    (or viewport "")
      :tags        count-tags
-     :description (or description "")
-     :keywords    (or keywords "")
+     :description (u/string-replace-newline (or description ""))
+     :keywords    (u/string-replace-newline (or keywords ""))
      :og:image    (or (get-meta-vals "og:image" :property) "")}))
 
 (defn site-logs-infos [logs]
