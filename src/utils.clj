@@ -3,6 +3,7 @@
             [semantic-csv.core :as csv]
             [taoensso.timbre :as timbre]
             [clj-http.client :as http]
+            [clojure.set]
             [java-time :as t])
   (:import [java.net URLEncoder]))
 
@@ -59,6 +60,16 @@
       (clojure.string/replace #"(\r\n|\n|\r)+" " ")
       (clojure.string/replace #"  +" " ")
       (clojure.string/trim)))
+
+(defn top250-csv-fields-to-fr [m]
+  (map #(clojure.set/rename-keys
+         % {:tags            :balises
+            :using-ga?       :utilise-google-analytics
+            :is-secure?      :certificat-valide
+            :keywords        :mots-clefs
+            :title           :titre
+            :requests-number :nombre-de-requetes
+            :content-length  :taille}) m))
 
 (defn top250-init []
   (timbre/info (str "Initializing " (path :top250-init-file)))

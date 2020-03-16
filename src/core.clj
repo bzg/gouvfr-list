@@ -153,6 +153,7 @@
   (let [c (e/chrome (:chromium-opts u/config))]
     (doseq [e (if testing (take 5 input) input)]
       (swap! output conj (merge e (site-infos c (:URL e) top250?)))))
+  (when top250? (swap! output u/top250-csv-fields-to-fr))
   (csv/spit-csv
    (u/path (if top250? :top250-output-file :gouvfr-output-file))
    (deref output)))
