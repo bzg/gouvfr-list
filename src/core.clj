@@ -56,9 +56,11 @@
                          (last (first (filter #(= ks (prop (last %)))
                                               (get-vals :meta))))))
         title         (last (first (get-vals :title)))
+        viewport      (get-meta-vals "viewport" :name)
         description   (get-meta-vals "description" :name)
         keywords      (get-meta-vals "keywords" :name)]
-    {:title       (or title "")      
+    {:title       (or title "")
+     :viewport    (or viewport "")
      :tags        count-tags
      :description (or description "")
      :keywords    (or keywords "")
