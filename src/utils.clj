@@ -2,7 +2,8 @@
   (:require [clojure.string]
             [semantic-csv.core :as csv]
             [taoensso.timbre :as timbre]
-            [clj-http.client :as http])
+            [clj-http.client :as http]
+            [java-time :as t])
   (:import [java.net URLEncoder]))
 
 (def config
@@ -12,10 +13,11 @@
    :data-path            "data/"
    :screenshots-rel-path "screenshots/"
    :gouvfr-init-file     "gouvfr-init.csv"
-   :gouvfr-output-file   "gouvfr.csv"
+   :gouvfr-output-file   (format "gouvfr-%s.csv" (t/format "MM/dd/YYYY" %))
    :gouvfr-raw-text-file "gouvfr-raw.txt"
    :top250-init-file     "top250-init.csv"
-   :top250-output-file   "tdb-demarches-phares-informations-supplementaires.csv"
+   :top250-output-file   (format "tdb-demarches-phares-informations-supplementaires-%.csv"
+                                 (t/format "YYYY/MM/dd" %))
    :top250-raw-csv-file  "a23f3995-fcfb-414c-ae3d-82adb90c07cc"
    :http-params          {:insecure?          true
                           :cookie-policy      :standard
